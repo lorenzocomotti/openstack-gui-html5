@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenStack GUI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Section -->
+        <div id="login-section" class="active">
+            <div class="login-container">
+                <h1>OpenStack Dashboard</h1>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="auth-url">Auth URL (Keystone)</label>
+                        <input type="text" id="auth-url" placeholder="http://controller:5000/v3" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="domain">Domain</label>
+                        <input type="text" id="domain" value="default" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="project">Project</label>
+                        <input type="text" id="project" value="admin" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                    <div id="login-error" class="error-message"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard-section">
+            <nav class="navbar">
+                <div class="navbar-brand">
+                    <h2>OpenStack Dashboard</h2>
+                </div>
+                <div class="navbar-menu">
+                    <button class="nav-btn active" data-section="compute">Compute (Nova)</button>
+                    <button class="nav-btn" data-section="images">Immagini (Glance)</button>
+                    <button class="nav-btn logout-btn" id="logout-btn">Logout</button>
+                </div>
+                <div class="user-info">
+                    <span id="current-user"></span>
+                    <span id="current-project"></span>
+                </div>
+            </nav>
+
+            <div class="main-content">
+                <!-- Compute Section -->
+                <div id="compute-section" class="content-section active">
+                    <div class="section-header">
+                        <h2>Istanze Compute</h2>
+                        <button class="btn btn-primary" id="create-instance-btn">Crea Nuova Istanza</button>
+                    </div>
+                    <div id="instances-list" class="data-grid">
+                        <div class="loading">Caricamento istanze...</div>
+                    </div>
+                </div>
+
+                <!-- Images Section -->
+                <div id="images-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Immagini Glance</h2>
+                        <button class="btn btn-primary" id="upload-image-btn">Carica Immagine</button>
+                    </div>
+                    <div id="images-list" class="data-grid">
+                        <div class="loading">Caricamento immagini...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Instance Modal -->
+        <div id="create-instance-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Crea Nuova Istanza</h3>
+                    <span class="close-btn" data-modal="create-instance-modal">&times;</span>
+                </div>
+                <form id="create-instance-form">
+                    <div class="form-group">
+                        <label for="instance-name">Nome Istanza</label>
+                        <input type="text" id="instance-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="instance-image">Immagine</label>
+                        <select id="instance-image" required>
+                            <option value="">Seleziona un'immagine...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="instance-flavor">Flavor</label>
+                        <select id="instance-flavor" required>
+                            <option value="">Seleziona un flavor...</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary close-btn" data-modal="create-instance-modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary">Crea Istanza</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Upload Image Modal -->
+        <div id="upload-image-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Carica Nuova Immagine</h3>
+                    <span class="close-btn" data-modal="upload-image-modal">&times;</span>
+                </div>
+                <form id="upload-image-form">
+                    <div class="form-group">
+                        <label for="image-name">Nome Immagine</label>
+                        <input type="text" id="image-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="image-format">Formato</label>
+                        <select id="image-format" required>
+                            <option value="qcow2">QCOW2</option>
+                            <option value="raw">RAW</option>
+                            <option value="vmdk">VMDK</option>
+                            <option value="vdi">VDI</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="image-url">URL Immagine</label>
+                        <input type="url" id="image-url" placeholder="http://..." required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="image-public">
+                            Immagine Pubblica
+                        </label>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary close-btn" data-modal="upload-image-modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary">Carica Immagine</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
