@@ -155,7 +155,7 @@ class OpenStackApp {
                 }
             };
 
-            const response = await this.fetch(`${authUrl}/auth/tokens`, {
+            const response = await fetch(`${authUrl}/auth/tokens`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -286,7 +286,7 @@ class OpenStackApp {
         container.innerHTML = '<div class="loading">Caricamento istanze...</div>';
 
         try {
-            const response = await this.fetch(`${this.novaUrl}/servers/detail`, {
+            const response = await fetch(`${this.novaUrl}/servers/detail`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -357,7 +357,7 @@ class OpenStackApp {
 
     async loadFlavors() {
         try {
-            const response = await this.fetch(`${this.novaUrl}/flavors/detail`, {
+            const response = await fetch(`${this.novaUrl}/flavors/detail`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -381,7 +381,7 @@ class OpenStackApp {
 
     async loadImagesForInstanceCreation() {
         try {
-            const response = await this.fetch(`${this.glanceUrl}/v2/images`, {
+            const response = await fetch(`${this.glanceUrl}/v2/images`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -419,7 +419,7 @@ class OpenStackApp {
                 }
             };
 
-            const response = await this.fetch(`${this.novaUrl}/servers`, {
+            const response = await fetch(`${this.novaUrl}/servers`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -459,7 +459,7 @@ class OpenStackApp {
         }
 
         try {
-            const response = await this.fetch(`${this.novaUrl}/servers/${instanceId}`, {
+            const response = await fetch(`${this.novaUrl}/servers/${instanceId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-Auth-Token': this.authToken
@@ -479,7 +479,7 @@ class OpenStackApp {
 
     async instanceAction(instanceId, action) {
         try {
-            const response = await this.fetch(`${this.novaUrl}/servers/${instanceId}/action`, {
+            const response = await fetch(`${this.novaUrl}/servers/${instanceId}/action`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -505,7 +505,7 @@ class OpenStackApp {
         container.innerHTML = '<div class="loading">Caricamento immagini...</div>';
 
         try {
-            const response = await this.fetch(`${this.glanceUrl}/v2/images`, {
+            const response = await fetch(`${this.glanceUrl}/v2/images`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -581,7 +581,7 @@ class OpenStackApp {
                 visibility: isPublic ? 'public' : 'private'
             };
 
-            const createResponse = await this.fetch(`${this.glanceUrl}/v2/images`, {
+            const createResponse = await fetch(`${this.glanceUrl}/v2/images`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -600,7 +600,7 @@ class OpenStackApp {
             const imageResponse = await fetch(url);
             const imageBlob = await imageResponse.blob();
 
-            const uploadResponse = await this.fetch(`${this.glanceUrl}/v2/images/${imageData.id}/file`, {
+            const uploadResponse = await fetch(`${this.glanceUrl}/v2/images/${imageData.id}/file`, {
                 method: 'PUT',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -628,7 +628,7 @@ class OpenStackApp {
         }
 
         try {
-            const response = await this.fetch(`${this.glanceUrl}/v2/images/${imageId}`, {
+            const response = await fetch(`${this.glanceUrl}/v2/images/${imageId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-Auth-Token': this.authToken
