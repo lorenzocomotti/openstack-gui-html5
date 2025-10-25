@@ -42,79 +42,6 @@ class OpenStackApp {
         }
     }
 
-    // Wrapper per fetch che gestisce proxy e timeout
-    async fetchWithConfig(url, options = {}) {
-        this.log('Fetch request to:', url);
-
-        let finalUrl = url;
-        let finalOptions = { ...options };
-
-        // Se USE_PROXY è abilitato, inoltra tutte le richieste tramite proxy
-        if (this.config.USE_PROXY && this.config.PROXY_URL) {
-            finalUrl = this.config.PROXY_URL;
-            finalOptions.method = 'POST';
-            finalOptions.headers = {
-                ...finalOptions.headers,
-                'Content-Type': 'application/json'
-            };
-            finalOptions.body = JSON.stringify({
-                url: url,
-                method: options.method || 'GET',
-                headers: options.headers || {},
-                body: options.body
-            });
-
-            this.log('Using proxy:', this.config.PROXY_URL);
-        }
-
-        // Gestione timeout
-        const timeout = this.config.REQUEST_TIMEOUT || 30000;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        try {
-            finalOptions.signal = controller.signal;
-            const response = await fetch(finalUrl, finalOptions);
-            clearTimeout(timeoutId);
-
-            this.log('Response status:', response.status);
-
-            // Se abbiamo usato il proxy, il vero response è nel body
-            if (this.config.USE_PROXY && response.ok) {
-                const proxyResponse = await response.json();
-                // Crea un oggetto Response-like dal proxy response
-                return {
-                    ok: proxyResponse.status >= 200 && proxyResponse.status < 300,
-                    status: proxyResponse.status,
-                    headers: {
-                        get: (name) => proxyResponse.headers[name]
-                    },
-                    json: async () => proxyResponse.body,
-                    blob: async () => {
-                        // Per blob, il proxy dovrebbe ritornare base64
-                        if (proxyResponse.bodyBase64) {
-                            const binaryString = atob(proxyResponse.bodyBase64);
-                            const bytes = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
-                            return new Blob([bytes]);
-                        }
-                        throw new Error('Blob data not available from proxy');
-                    }
-                };
-            }
-
-            return response;
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                throw new Error('Request timeout');
-            }
-            throw error;
-        }
-    }
-
     attachEventListeners() {
         // Login form
         document.getElementById('login-form').addEventListener('submit', (e) => {
@@ -228,7 +155,7 @@ class OpenStackApp {
                 }
             };
 
-            const response = await this.fetchWithConfig(`${authUrl}/auth/tokens`, {
+            const response = await this.fetch(`${authUrl}/auth/tokens`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -251,16 +178,46 @@ class OpenStackApp {
             this.projectName = project;
 
             // Get service endpoints
-            const catalog = data.token.catalog;
-            const novaService = catalog.find(s => s.type === 'compute');
-            const glanceService = catalog.find(s => s.type === 'image');
+            const endpointType = this.config.ENDPOINT_TYPE || 'public';
+            this.log('Using endpoint type:', endpointType);
 
-            if (novaService) {
-                this.novaUrl = novaService.endpoints.find(e => e.interface === 'public').url;
+            // Check for manual endpoint overrides first
+            if (this.config.NOVA_ENDPOINT_OVERRIDE) {
+                this.novaUrl = this.config.NOVA_ENDPOINT_OVERRIDE;
+                this.log('Using Nova endpoint override:', this.novaUrl);
+            } else {
+                const catalog = data.token.catalog;
+                const novaService = catalog.find(s => s.type === 'compute');
+                if (novaService) {
+                    const endpoint = novaService.endpoints.find(e => e.interface === endpointType);
+                    if (endpoint) {
+                        this.novaUrl = endpoint.url;
+                        this.log('Nova endpoint from catalog:', this.novaUrl);
+                    } else {
+                        console.warn(`No ${endpointType} endpoint found for Nova, falling back to public`);
+                        const fallback = novaService.endpoints.find(e => e.interface === 'public');
+                        if (fallback) this.novaUrl = fallback.url;
+                    }
+                }
             }
 
-            if (glanceService) {
-                this.glanceUrl = glanceService.endpoints.find(e => e.interface === 'public').url;
+            if (this.config.GLANCE_ENDPOINT_OVERRIDE) {
+                this.glanceUrl = this.config.GLANCE_ENDPOINT_OVERRIDE;
+                this.log('Using Glance endpoint override:', this.glanceUrl);
+            } else {
+                const catalog = data.token.catalog;
+                const glanceService = catalog.find(s => s.type === 'image');
+                if (glanceService) {
+                    const endpoint = glanceService.endpoints.find(e => e.interface === endpointType);
+                    if (endpoint) {
+                        this.glanceUrl = endpoint.url;
+                        this.log('Glance endpoint from catalog:', this.glanceUrl);
+                    } else {
+                        console.warn(`No ${endpointType} endpoint found for Glance, falling back to public`);
+                        const fallback = glanceService.endpoints.find(e => e.interface === 'public');
+                        if (fallback) this.glanceUrl = fallback.url;
+                    }
+                }
             }
 
             // Store in localStorage
@@ -329,7 +286,7 @@ class OpenStackApp {
         container.innerHTML = '<div class="loading">Caricamento istanze...</div>';
 
         try {
-            const response = await this.fetchWithConfig(`${this.novaUrl}/servers/detail`, {
+            const response = await this.fetch(`${this.novaUrl}/servers/detail`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -400,7 +357,7 @@ class OpenStackApp {
 
     async loadFlavors() {
         try {
-            const response = await this.fetchWithConfig(`${this.novaUrl}/flavors/detail`, {
+            const response = await this.fetch(`${this.novaUrl}/flavors/detail`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -424,7 +381,7 @@ class OpenStackApp {
 
     async loadImagesForInstanceCreation() {
         try {
-            const response = await this.fetchWithConfig(`${this.glanceUrl}/v2/images`, {
+            const response = await this.fetch(`${this.glanceUrl}/v2/images`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -462,7 +419,7 @@ class OpenStackApp {
                 }
             };
 
-            const response = await this.fetchWithConfig(`${this.novaUrl}/servers`, {
+            const response = await this.fetch(`${this.novaUrl}/servers`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -502,7 +459,7 @@ class OpenStackApp {
         }
 
         try {
-            const response = await this.fetchWithConfig(`${this.novaUrl}/servers/${instanceId}`, {
+            const response = await this.fetch(`${this.novaUrl}/servers/${instanceId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-Auth-Token': this.authToken
@@ -522,7 +479,7 @@ class OpenStackApp {
 
     async instanceAction(instanceId, action) {
         try {
-            const response = await this.fetchWithConfig(`${this.novaUrl}/servers/${instanceId}/action`, {
+            const response = await this.fetch(`${this.novaUrl}/servers/${instanceId}/action`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -548,7 +505,7 @@ class OpenStackApp {
         container.innerHTML = '<div class="loading">Caricamento immagini...</div>';
 
         try {
-            const response = await this.fetchWithConfig(`${this.glanceUrl}/v2/images`, {
+            const response = await this.fetch(`${this.glanceUrl}/v2/images`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -624,7 +581,7 @@ class OpenStackApp {
                 visibility: isPublic ? 'public' : 'private'
             };
 
-            const createResponse = await this.fetchWithConfig(`${this.glanceUrl}/v2/images`, {
+            const createResponse = await this.fetch(`${this.glanceUrl}/v2/images`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -643,7 +600,7 @@ class OpenStackApp {
             const imageResponse = await fetch(url);
             const imageBlob = await imageResponse.blob();
 
-            const uploadResponse = await this.fetchWithConfig(`${this.glanceUrl}/v2/images/${imageData.id}/file`, {
+            const uploadResponse = await this.fetch(`${this.glanceUrl}/v2/images/${imageData.id}/file`, {
                 method: 'PUT',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -671,7 +628,7 @@ class OpenStackApp {
         }
 
         try {
-            const response = await this.fetchWithConfig(`${this.glanceUrl}/v2/images/${imageId}`, {
+            const response = await this.fetch(`${this.glanceUrl}/v2/images/${imageId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-Auth-Token': this.authToken

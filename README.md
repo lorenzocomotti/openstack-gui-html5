@@ -37,9 +37,8 @@ Una GUI web moderna e semplice per gestire OpenStack, costruita interamente con 
   - Keystone (Identity service)
   - Nova (Compute service)
   - Glance (Image service)
-- Un web server per servire i file HTML (o semplicemente aprire index.html in un browser moderno)
+- Un web server per servire i file HTML
 - Browser moderno con supporto per ES6+ e Fetch API
-- Node.js (opzionale, solo se usi il proxy server per certificati SSL autofirmati)
 
 ## Installazione
 
@@ -50,7 +49,7 @@ Una GUI web moderna e semplice per gestire OpenStack, costruita interamente con 
 ```javascript
 const CONFIG = {
     // Endpoint di Keystone (pre-compilato nel form di login)
-    KEYSTONE_ENDPOINT: 'https://controller:5000/v3',
+    KEYSTONE_ENDPOINT: 'https://192.168.1.100:5000/v3',
 
     // Dominio e progetto di default
     DEFAULT_DOMAIN: 'default',
@@ -59,18 +58,22 @@ const CONFIG = {
     // Pre-compila il form di login
     PREFILL_LOGIN_FORM: true,
 
-    // Usa proxy per certificati SSL autofirmati (vedi sotto)
-    USE_PROXY: false,
-    PROXY_URL: 'http://localhost:3000/proxy',
+    // Tipo di endpoint: 'public', 'internal', o 'admin'
+    ENDPOINT_TYPE: 'internal',  // Usa 'internal' per rete interna
+
+    // Override manuale degli endpoint (opzionale)
+    NOVA_ENDPOINT_OVERRIDE: '',    // Es: 'http://192.168.1.10:8774/v2.1'
+    GLANCE_ENDPOINT_OVERRIDE: '',  // Es: 'http://192.168.1.10:9292'
+
+    // Path certificato CA (solo per documentazione)
+    CA_CERT_PATH: '/etc/ssl/certs/openstack-ca.crt',
 
     // Debug mode
-    DEBUG_MODE: false,
-
-    // Altri parametri...
+    DEBUG_MODE: false
 };
 ```
 
-3. Servi i file tramite un web server. Puoi usare un semplice server HTTP:
+3. Servi i file tramite un web server:
 
 ```bash
 # Python 3
@@ -81,9 +84,6 @@ python -m SimpleHTTPServer 8000
 
 # Node.js (con http-server)
 npx http-server -p 8000
-
-# Oppure usa il comando npm
-npm run serve
 ```
 
 4. Apri il browser e vai su `http://localhost:8000`
@@ -133,58 +133,43 @@ npm run serve
 
 Il file `config.js` permette di personalizzare vari aspetti dell'applicazione:
 
-```javascript
-const CONFIG = {
-    // Endpoint di Keystone pre-configurato
-    // Lascia vuoto ('') per inserirlo manualmente al login
-    KEYSTONE_ENDPOINT: '',
+### Opzioni di Configurazione Principali
 
-    // Dominio di default (pre-compila il campo nel form di login)
-    DEFAULT_DOMAIN: 'default',
-
-    // Progetto di default (pre-compila il campo nel form di login)
-    DEFAULT_PROJECT: 'admin',
-
-    // Pre-compila automaticamente il form di login con i valori sopra
-    PREFILL_LOGIN_FORM: true,
-
-    // Abilita il proxy per gestire certificati SSL autofirmati e CORS
-    USE_PROXY: false,
-
-    // URL del proxy locale (se USE_PROXY è true)
-    PROXY_URL: 'http://localhost:3000/proxy',
-
-    // Abilita logging dettagliato nella console del browser
-    DEBUG_MODE: false,
-
-    // Timeout per le richieste API (in millisecondi)
-    REQUEST_TIMEOUT: 30000,
-
-    // Auto-refresh automatico delle liste (in secondi, 0 = disabilitato)
-    AUTO_REFRESH_INTERVAL: 0
-};
-```
+| Opzione | Descrizione | Esempio |
+|---------|-------------|---------|
+| `KEYSTONE_ENDPOINT` | URL di Keystone (lascia vuoto per inserirlo manualmente al login) | `'https://192.168.1.100:5000/v3'` |
+| `DEFAULT_DOMAIN` | Dominio di default | `'default'` |
+| `DEFAULT_PROJECT` | Progetto di default | `'admin'` |
+| `PREFILL_LOGIN_FORM` | Pre-compila il form di login | `true` / `false` |
+| `ENDPOINT_TYPE` | Tipo di endpoint da usare | `'public'` / `'internal'` / `'admin'` |
+| `NOVA_ENDPOINT_OVERRIDE` | Endpoint Nova personalizzato (opzionale) | `'http://192.168.1.10:8774/v2.1'` |
+| `GLANCE_ENDPOINT_OVERRIDE` | Endpoint Glance personalizzato (opzionale) | `'http://192.168.1.10:9292'` |
+| `CA_CERT_PATH` | Path del certificato CA (solo documentazione) | `'/etc/ssl/certs/ca.crt'` |
+| `DEBUG_MODE` | Abilita logging dettagliato | `true` / `false` |
+| `REQUEST_TIMEOUT` | Timeout richieste API (ms) | `30000` |
 
 ### Esempi di Configurazione
 
-**Configurazione Minima (inserimento manuale)**:
+**Configurazione per Rete Interna (endpoint internal)**:
 ```javascript
 const CONFIG = {
-    KEYSTONE_ENDPOINT: '',
-    PREFILL_LOGIN_FORM: false,
-    USE_PROXY: false
-};
-```
-
-**Configurazione con Proxy (certificati SSL autofirmati)**:
-```javascript
-const CONFIG = {
-    KEYSTONE_ENDPOINT: 'https://192.168.1.100:5000/v3',
+    KEYSTONE_ENDPOINT: 'https://controller.internal:5000/v3',
     DEFAULT_DOMAIN: 'default',
     DEFAULT_PROJECT: 'admin',
     PREFILL_LOGIN_FORM: true,
-    USE_PROXY: true,
-    PROXY_URL: 'http://localhost:3000/proxy',
+    ENDPOINT_TYPE: 'internal',  // Usa endpoint interni
+    DEBUG_MODE: false
+};
+```
+
+**Configurazione con Endpoint Manuali**:
+```javascript
+const CONFIG = {
+    KEYSTONE_ENDPOINT: 'https://192.168.1.100:5000/v3',
+    ENDPOINT_TYPE: 'internal',
+    // Override manuale degli endpoint (ignora service catalog)
+    NOVA_ENDPOINT_OVERRIDE: 'http://192.168.1.10:8774/v2.1',
+    GLANCE_ENDPOINT_OVERRIDE: 'http://192.168.1.10:9292',
     DEBUG_MODE: true
 };
 ```
@@ -208,70 +193,102 @@ openstack-gui-html5/
 ├── styles.css          # Stili CSS
 ├── app.js              # Logica JavaScript dell'applicazione
 ├── config.js           # File di configurazione
-├── proxy-server.js     # Proxy server per certificati SSL (opzionale)
-├── package.json        # Dipendenze e script npm
 └── README.md           # Documentazione
 ```
 
 ## Certificati SSL Autofirmati
 
-Se il tuo ambiente OpenStack usa **certificati SSL autofirmati**, i browser moderni bloccheranno le richieste per motivi di sicurezza. Hai due opzioni:
+Se il tuo ambiente OpenStack usa **certificati SSL autofirmati**, devi importare il certificato CA nel tuo sistema o browser. I browser moderni non permettono di accettare certificati non fidati tramite JavaScript per motivi di sicurezza.
 
-### Opzione 1: Usa il Proxy Server (Raccomandato per Development)
+### Opzione 1: Importa il Certificato CA nel Sistema (Raccomandato)
 
-Il progetto include un proxy server Node.js che gestisce automaticamente i certificati autofirmati e i problemi CORS.
+#### Linux (Ubuntu/Debian)
 
-1. **Avvia il proxy server**:
+1. Copia il certificato CA in `/usr/local/share/ca-certificates/`:
+```bash
+sudo cp openstack-ca.crt /usr/local/share/ca-certificates/
+```
+
+2. Aggiorna i certificati di sistema:
+```bash
+sudo update-ca-certificates
+```
+
+3. Riavvia il browser
+
+#### Linux (CentOS/RHEL/Fedora)
+
+1. Copia il certificato in `/etc/pki/ca-trust/source/anchors/`:
+```bash
+sudo cp openstack-ca.crt /etc/pki/ca-trust/source/anchors/
+```
+
+2. Aggiorna i certificati di sistema:
+```bash
+sudo update-ca-trust
+```
+
+3. Riavvia il browser
+
+#### macOS
+
+1. Apri l'applicazione "Keychain Access"
+2. Seleziona "System" nella barra laterale
+3. Menu: File → Importa elementi
+4. Seleziona il certificato CA
+5. Doppio click sul certificato importato
+6. Espandi "Trust" e imposta "When using this certificate" su "Always Trust"
+7. Riavvia il browser
+
+#### Windows
+
+1. Doppio click sul file `.crt` del certificato CA
+2. Click su "Installa certificato..."
+3. Seleziona "Computer locale" e click "Avanti"
+4. Seleziona "Posiziona tutti i certificati nel seguente archivio"
+5. Click "Sfoglia" e seleziona "Autorità di certificazione radice attendibili"
+6. Click "Avanti" e "Fine"
+7. Riavvia il browser
+
+### Opzione 2: Importa nel Browser (Firefox)
+
+Firefox usa il proprio archivio certificati:
+
+1. Apri Firefox
+2. Menu → Impostazioni → Privacy e sicurezza
+3. Scorri fino a "Certificati" e click su "Visualizza certificati"
+4. Tab "Autorità" → Click "Importa..."
+5. Seleziona il certificato CA
+6. Spunta "Considera attendibile questa CA per l'identificazione di siti web"
+7. Click OK
+
+### Opzione 3: Usa Certificati Validi (Produzione)
+
+In produzione, usa sempre certificati SSL validi firmati da una CA riconosciuta (es. Let's Encrypt):
 
 ```bash
-node proxy-server.js
-
-# Oppure usa npm
-npm start
-# O
-npm run proxy
+# Esempio con certbot per Let's Encrypt
+sudo certbot certonly --standalone -d controller.example.com
 ```
 
-Il proxy partirà su `http://localhost:3000`
+### Configurazione CORS
 
-2. **Configura l'applicazione** per usare il proxy modificando `config.js`:
+Se riscontri problemi CORS, configura OpenStack:
 
-```javascript
-const CONFIG = {
-    KEYSTONE_ENDPOINT: 'https://controller:5000/v3',
-    USE_PROXY: true,
-    PROXY_URL: 'http://localhost:3000/proxy',
-    // ... altre configurazioni
-};
-```
-
-3. **Ricarica la pagina** nel browser
-
-Il proxy inoltrerà tutte le richieste alle API OpenStack, gestendo automaticamente:
-- Certificati SSL autofirmati
-- Problemi CORS
-- Header di autenticazione
-
-**ATTENZIONE**: Il proxy disabilita la verifica SSL. Usalo SOLO in ambienti di sviluppo/test!
-
-### Opzione 2: Configura CORS in OpenStack
-
-Configura CORS nei servizi OpenStack in `keystone.conf`, `nova.conf` e `glance-api.conf`:
-
+**In `keystone.conf`, `nova.conf`, `glance-api.conf`:**
 ```ini
 [cors]
-allowed_origin = http://localhost:8000
+allowed_origin = http://localhost:8000,https://yourdomain.com
 allow_credentials = true
 expose_headers = X-Subject-Token,X-Auth-Token
 ```
 
-Poi riavvia i servizi OpenStack.
-
-**Nota**: Questa opzione non risolve i problemi con certificati SSL autofirmati. Dovrai comunque accettare manualmente il certificato nel browser visitando gli endpoint HTTPS.
-
-### Opzione 3: Usa un Certificato Valido
-
-In produzione, usa sempre certificati SSL validi firmati da una CA riconosciuta (es. Let's Encrypt).
+Riavvia i servizi dopo la modifica:
+```bash
+sudo systemctl restart apache2  # o nginx
+sudo systemctl restart nova-api
+sudo systemctl restart glance-api
+```
 
 ## Limitazioni
 
