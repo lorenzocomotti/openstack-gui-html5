@@ -1,0 +1,25 @@
+{
+  "name": "openstack-gui-html5",
+  "version": "1.0.0",
+  "description": "GUI web moderna per OpenStack con supporto per Keystone, Nova e Glance",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "proxy": "node proxy-server.js",
+    "serve": "python3 -m http.server 8000",
+    "dev": "npm run proxy & npm run serve"
+  },
+  "keywords": [
+    "openstack",
+    "gui",
+    "keystone",
+    "nova",
+    "glance",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}

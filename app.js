@@ -9,12 +9,110 @@ class OpenStackApp {
         this.projectName = null;
         this.novaUrl = null;
         this.glanceUrl = null;
+        this.config = window.CONFIG || {};
+        this.autoRefreshTimer = null;
         this.init();
     }
 
     init() {
         this.attachEventListeners();
+        this.prefillLoginForm();
         this.checkAuthStatus();
+    }
+
+    // Logging helper per debug
+    log(...args) {
+        if (this.config.DEBUG_MODE) {
+            console.log('[OpenStack GUI]', ...args);
+        }
+    }
+
+    // Pre-compila il form di login con i valori di default
+    prefillLoginForm() {
+        if (this.config.PREFILL_LOGIN_FORM) {
+            if (this.config.KEYSTONE_ENDPOINT) {
+                document.getElementById('auth-url').value = this.config.KEYSTONE_ENDPOINT;
+            }
+            if (this.config.DEFAULT_DOMAIN) {
+                document.getElementById('domain').value = this.config.DEFAULT_DOMAIN;
+            }
+            if (this.config.DEFAULT_PROJECT) {
+                document.getElementById('project').value = this.config.DEFAULT_PROJECT;
+            }
+        }
+    }
+
+    // Wrapper per fetch che gestisce proxy e timeout
+    async fetchWithConfig(url, options = {}) {
+        this.log('Fetch request to:', url);
+
+        let finalUrl = url;
+        let finalOptions = { ...options };
+
+        // Se USE_PROXY è abilitato, inoltra tutte le richieste tramite proxy
+        if (this.config.USE_PROXY && this.config.PROXY_URL) {
+            finalUrl = this.config.PROXY_URL;
+            finalOptions.method = 'POST';
+            finalOptions.headers = {
+                ...finalOptions.headers,
+                'Content-Type': 'application/json'
+            };
+            finalOptions.body = JSON.stringify({
+                url: url,
+                method: options.method || 'GET',
+                headers: options.headers || {},
+                body: options.body
+            });
+
+            this.log('Using proxy:', this.config.PROXY_URL);
+        }
+
+        // Gestione timeout
+        const timeout = this.config.REQUEST_TIMEOUT || 30000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        try {
+            finalOptions.signal = controller.signal;
+            const response = await fetch(finalUrl, finalOptions);
+            clearTimeout(timeoutId);
+
+            this.log('Response status:', response.status);
+
+            // Se abbiamo usato il proxy, il vero response è nel body
+            if (this.config.USE_PROXY && response.ok) {
+                const proxyResponse = await response.json();
+                // Crea un oggetto Response-like dal proxy response
+                return {
+                    ok: proxyResponse.status >= 200 && proxyResponse.status < 300,
+                    status: proxyResponse.status,
+                    headers: {
+                        get: (name) => proxyResponse.headers[name]
+                    },
+                    json: async () => proxyResponse.body,
+                    blob: async () => {
+                        // Per blob, il proxy dovrebbe ritornare base64
+                        if (proxyResponse.bodyBase64) {
+                            const binaryString = atob(proxyResponse.bodyBase64);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            return new Blob([bytes]);
+                        }
+                        throw new Error('Blob data not available from proxy');
+                    }
+                };
+            }
+
+            return response;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Request timeout');
+            }
+            throw error;
+        }
     }
 
     attachEventListeners() {
@@ -130,7 +228,7 @@ class OpenStackApp {
                 }
             };
 
-            const response = await fetch(`${authUrl}/auth/tokens`, {
+            const response = await this.fetchWithConfig(`${authUrl}/auth/tokens`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -231,7 +329,7 @@ class OpenStackApp {
         container.innerHTML = '<div class="loading">Caricamento istanze...</div>';
 
         try {
-            const response = await fetch(`${this.novaUrl}/servers/detail`, {
+            const response = await this.fetchWithConfig(`${this.novaUrl}/servers/detail`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -302,7 +400,7 @@ class OpenStackApp {
 
     async loadFlavors() {
         try {
-            const response = await fetch(`${this.novaUrl}/flavors/detail`, {
+            const response = await this.fetchWithConfig(`${this.novaUrl}/flavors/detail`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -326,7 +424,7 @@ class OpenStackApp {
 
     async loadImagesForInstanceCreation() {
         try {
-            const response = await fetch(`${this.glanceUrl}/v2/images`, {
+            const response = await this.fetchWithConfig(`${this.glanceUrl}/v2/images`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -364,7 +462,7 @@ class OpenStackApp {
                 }
             };
 
-            const response = await fetch(`${this.novaUrl}/servers`, {
+            const response = await this.fetchWithConfig(`${this.novaUrl}/servers`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -404,7 +502,7 @@ class OpenStackApp {
         }
 
         try {
-            const response = await fetch(`${this.novaUrl}/servers/${instanceId}`, {
+            const response = await this.fetchWithConfig(`${this.novaUrl}/servers/${instanceId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-Auth-Token': this.authToken
@@ -424,7 +522,7 @@ class OpenStackApp {
 
     async instanceAction(instanceId, action) {
         try {
-            const response = await fetch(`${this.novaUrl}/servers/${instanceId}/action`, {
+            const response = await this.fetchWithConfig(`${this.novaUrl}/servers/${instanceId}/action`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -450,7 +548,7 @@ class OpenStackApp {
         container.innerHTML = '<div class="loading">Caricamento immagini...</div>';
 
         try {
-            const response = await fetch(`${this.glanceUrl}/v2/images`, {
+            const response = await this.fetchWithConfig(`${this.glanceUrl}/v2/images`, {
                 headers: {
                     'X-Auth-Token': this.authToken
                 }
@@ -526,7 +624,7 @@ class OpenStackApp {
                 visibility: isPublic ? 'public' : 'private'
             };
 
-            const createResponse = await fetch(`${this.glanceUrl}/v2/images`, {
+            const createResponse = await this.fetchWithConfig(`${this.glanceUrl}/v2/images`, {
                 method: 'POST',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -545,7 +643,7 @@ class OpenStackApp {
             const imageResponse = await fetch(url);
             const imageBlob = await imageResponse.blob();
 
-            const uploadResponse = await fetch(`${this.glanceUrl}/v2/images/${imageData.id}/file`, {
+            const uploadResponse = await this.fetchWithConfig(`${this.glanceUrl}/v2/images/${imageData.id}/file`, {
                 method: 'PUT',
                 headers: {
                     'X-Auth-Token': this.authToken,
@@ -573,7 +671,7 @@ class OpenStackApp {
         }
 
         try {
-            const response = await fetch(`${this.glanceUrl}/v2/images/${imageId}`, {
+            const response = await this.fetchWithConfig(`${this.glanceUrl}/v2/images/${imageId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-Auth-Token': this.authToken
