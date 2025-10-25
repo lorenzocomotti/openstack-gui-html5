@@ -53,10 +53,13 @@ const server = http.createServer((req, res) => {
         body += chunk.toString();
     });
 
-    req.on('end', async () => {
+    req.on('end', function() {
         try {
             const proxyRequest = JSON.parse(body);
-            const { url: targetUrl, method, headers, body: requestBody } = proxyRequest;
+            const targetUrl = proxyRequest.url;
+            const method = proxyRequest.method;
+            const headers = proxyRequest.headers;
+            const requestBody = proxyRequest.body;
 
             if (!targetUrl) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -82,9 +85,10 @@ const server = http.createServer((req, res) => {
 
             const proxyReq = httpModule.request(options, (proxyRes) => {
                 let responseData = '';
-                const isJson = proxyRes.headers['content-type']?.includes('application/json');
-                const isBinary = proxyRes.headers['content-type']?.includes('application/octet-stream') ||
-                                proxyRes.headers['content-type']?.includes('image/');
+                const contentType = proxyRes.headers['content-type'] || '';
+                const isJson = contentType.includes('application/json');
+                const isBinary = contentType.includes('application/octet-stream') ||
+                                contentType.includes('image/');
 
                 // Per i dati binari, usa buffer
                 if (isBinary) {
